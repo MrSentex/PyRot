@@ -6,6 +6,7 @@ from json import loads
 from time import sleep, time
 from os import system, path, mkdir
 
+import sys
 import hashlib, random
 from sys import exit
 
@@ -68,15 +69,15 @@ class ClientHandler (object):
     def handle_client(self, client, addr):
         proxy = self.get_proxy(addr)
         proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        proxy_socket.settimeout(self.instances.get("Config")["CheckTimeout"])
+        proxy_socket.settimeout(self.instances.get("Config")["CheckTimeout"]+5)
 
         if not self.instances.get("ProxyMemory").exists(proxy):
             proxy = self.renew_proxy(addr)
 
         try:
-            proxy_socket.connect((proxy["host"], proxy["port"]))
+            proxy_socket.connect((proxy["host"], int(proxy["port"])))
         except Exception as e:
-            self.instances.get("Console").print_c(self.instances.get("Console").ERROR, "The proxy connection failed in client '{}'. Deleting the proxy and waiting to the next request. ({})".format(addr[0], str(e)))
+            self.instances.get("Console").print_c(self.instances.get("Console").ERROR, "The proxy connection failed in client '{}'. Deleting proxy {}:{} and waiting to the next request. ({})".format(addr[0],proxy["host"], proxy["port"], str(e)))
             client.close()
             self.instances.get("ProxyMemory").remove_proxy(proxy)
             return
@@ -199,11 +200,14 @@ class ProxyMemory (object):
                 sleep(self.instances.get("Utils").string_time_to_seconds(self.instances.get("Config")["CheckElapse"]))
 
     def refresh_thread(self):
+        plugin_times = {}
+        for plugin_obj in self.refresh_tables:
+            plugin_times[plugin_obj.get("plugin")] = plugin_obj.get("time") + time()
         while True:
+            sleep(3)
             actual_time = time()
-
             for plugin_obj in self.refresh_tables:
-                if plugin_obj.get("time") > actual_time:
+                if plugin_times[plugin_obj.get("plugin")] < actual_time:
                     self.instances.get("Console").print_c(self.instances.get("Console").WARNING, "Refreshing plugin '{}'...".format(plugin_obj.get("plugin").NAME))
                     proxies = plugin_obj.get("plugin").return_proxies(refresh=True)
 
@@ -217,6 +221,7 @@ class ProxyMemory (object):
                             proxies_loaded += 1
 
                     self.instances.get("Console").print_c(self.instances.get("Console").CORRECT, "Done!. {} new proxies loaded from '{}'.".format(proxies_loaded, plugin_obj.get("plugin").NAME))
+                    plugin_times[plugin_obj.get("plugin")] = plugin_obj.get("time") + time()
 
     def get_proxies_thread(self):
         self.instances.get("Console").print_c(self.instances.get("Console").INFO, "Starting proxy gathering related plugins...")
@@ -255,17 +260,17 @@ class ProxyMemory (object):
                 self.instances.get("Console").print_c(self.instances.get("Console").CORRECT, "{} -> {} proxies loaded.".format(plugin.NAME, proxies_loaded))
 
                 if plugin.REFRESH_ELAPSE != "":
-                    refresh_time = self.instances.get("Utils").string_time_to_miliseconds(plugin.REFRESH_ELAPSE)
-
+                    refresh_time = self.instances.get("Utils").string_time_to_seconds(plugin.REFRESH_ELAPSE)
                     if refresh_time == 0:
                         self.instances.get("Console").print_c(self.instances.get("Console").WARNING, "The plugin '{}' is refreshing all the {} seconds and can cause performance issues.".format(plugin.NAME, refresh_time))
 
-                    self.refresh_tables.append({"plugin" : plugin, "time" : time() + refresh_time})
+                    self.refresh_tables.append({"plugin" : plugin, "time" : refresh_time})
 
                 plugins_loaded += 1
             except Exception as e:
                 self.instances.get("Console").print_c(self.instances.get("Console").ERROR, "Plugin {} throw an error while running it ({}).".format(plugin.NAME, str(e)))
-
+        proxy_refresh_thread = Thread(target=self.refresh_thread)
+        proxy_refresh_thread.start()
         self.instances.get("Console").print_c(self.instances.get("Console").CORRECT, "Done! {}/{} plugins executed successfully ({} proxies)".format(plugins_loaded, len(self.plugins), len(self.stored_proxies)))
 
     def random_proxy(self):
@@ -308,7 +313,7 @@ class ProxyHandler (object):
 
         try:
             self.proxy_socket.bind((self.instances.get("Config")["ProxyBindAddress"], self.instances.get("Config")["ProxyBindPort"]))
-            self.proxy_socket.listen(5000)
+            self.proxy_socket.listen(100000)
 
             self.instances.get("Console").print_c(self.instances.get("Console").CORRECT, "Done!. Proxy is listening on {}:{}...".format(self.instances.get("Config")["ProxyBindAddress"], self.instances.get("Config")["ProxyBindPort"]))
 
