@@ -226,8 +226,12 @@ class ProxyMemory (object):
                         hash = hashlib.md5("{}:{}:{}".format(proxy.get("host"), proxy.get("port"), proxy.get("type"))).hexdigest()
 
                         if self.stored_proxies.get(hash) is None:
-                            self.stored_proxies[hash] = proxy
-                            proxies_loaded += 1
+
+                            if self.instances.get("Utils").is_ip(proxy.get("host")) and self.instances.get("Utils").is_integer(proxy.get("port")):
+                                proxy["port"] = int(proxy["port"])
+
+                                self.stored_proxies[hash] = proxy
+                                proxies_loaded += 1
 
                     plugin_obj["time"] = time() + self.instances.get("Utils").string_time_to_seconds(plugin_obj.get("plugin").REFRESH_ELAPSE)
 
