@@ -4,7 +4,7 @@ class Main (object): # The name of the class mus be Main.
     AUTH = "MrSentex"
     TYPE = "proxies"
     REFRESH = True
-    REFRESH_ELAPSE = "1m" # m = Minutes | h = Hours | s = Seconds | d = Days
+    REFRESH_ELAPSE = "50m" # m = Minutes | h = Hours | s = Seconds | d = Days
 
     def __init__(self, config_instance): # Build-In
         # Config instance to give to the plugin the capability to read the configuration file.
@@ -15,7 +15,7 @@ class Main (object): # The name of the class mus be Main.
 
         # Personal vars for te plugin or autorun things (Like configuration, etc...)
         self.file = "proxies.txt" # Proxies list (host:port => format)
-        self.file_proxy_types = "http" # Types -> socks4, socks5, http, https
+        self.file_proxy_types = "socks4" # Types -> socks4, socks5, http, https
 
     def run (self): # Build-In
         self.get_proxies_from_file()

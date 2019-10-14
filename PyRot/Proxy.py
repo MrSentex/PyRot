@@ -187,6 +187,7 @@ class ProxyMemory (object):
         while True:
 
             if self.instances.get("Config")["CheckThreads"] == 0:
+                self.instances.get("Console").print_c(self.instances.get("Console").WARNING, "Proxy checking is disabled!.")
                 break
 
             self.instances.get("Console").print_c(self.instances.get("Console").INFO, "Starting new check to {} proxies in memory...".format(len(self.stored_proxies)))

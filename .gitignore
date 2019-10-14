@@ -1,4 +1,6 @@
 *.pyc
+*.log
+proxies.txt
 venv/
 .idea/
 .vscode/
