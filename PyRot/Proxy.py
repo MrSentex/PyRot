@@ -4,12 +4,9 @@ import requests
 from json import loads
 
 from time import sleep, time
-from os import system, path, mkdir
 
 import hashlib, random
 from sys import exit
-
-import ssl
 
 class ClientHandler (object):
     def __init__(self):
@@ -18,9 +15,13 @@ class ClientHandler (object):
         self.clients = {}
 
     def get_client_hash(self, addr):
-        return hashlib.new("md5", "{}:{}".format(addr[0], addr[1])).hexdigest()
+        return hashlib.new("md5", "{}".format(addr[0])).hexdigest()
 
     def get_proxy(self, addr):
+
+        if not self.instances.get("Config")["ClientIdentification"]:
+            return self.instances.get("ProxyMemory").random_proxy()
+
         client_hash = self.get_client_hash(addr)
 
         if self.clients.get(client_hash) is None:
@@ -71,12 +72,19 @@ class ClientHandler (object):
         proxy_socket.settimeout(self.instances.get("Config")["CheckTimeout"])
 
         if not self.instances.get("ProxyMemory").exists(proxy):
-            proxy = self.renew_proxy(addr)
+            if self.instances.get("Config")["ClientIdentification"]:
+                proxy = self.renew_proxy(addr)
+            else:
+                while True:
+                    proxy = self.instances.get("ProxyMemory").random_proxy()
+
+                    if self.instances.get("ProxyMemory").exists(proxy):
+                        break
 
         try:
             proxy_socket.connect((proxy["host"], proxy["port"]))
         except Exception as e:
-            self.instances.get("Console").print_c(self.instances.get("Console").ERROR, "The proxy connection failed in client '{}'. Deleting the proxy and waiting to the next request. ({})".format(addr[0], str(e)))
+            self.instances.get("Console").print_c(self.instances.get("Console").ERROR, "The proxy connection failed in client '{}'. Deleting the proxy '{}:{}' and waiting to the next request. ({})".format(addr[0], proxy.get("host"), proxy.get("port"), str(e)))
             client.close()
             self.instances.get("ProxyMemory").remove_proxy(proxy)
             return
@@ -217,9 +225,8 @@ class ProxyMemory (object):
                         hash = hashlib.md5("{}:{}:{}".format(proxy.get("host"), proxy.get("port"), proxy.get("type"))).hexdigest()
 
                         if self.stored_proxies.get(hash) is None:
-                            if self.check_proxy(proxy):
-                                self.stored_proxies[hash] = proxy
-                                proxies_loaded += 1
+                            self.stored_proxies[hash] = proxy
+                            proxies_loaded += 1
 
                     plugin_obj["time"] = time() + self.instances.get("Utils").string_time_to_seconds(plugin_obj.get("plugin").REFRESH_ELAPSE)
 
@@ -318,7 +325,7 @@ class ProxyHandler (object):
 
         try:
             self.proxy_socket.bind((self.instances.get("Config")["ProxyBindAddress"], self.instances.get("Config")["ProxyBindPort"]))
-            self.proxy_socket.listen(5000)
+            self.proxy_socket.listen(10000)
 
             self.instances.get("Console").print_c(self.instances.get("Console").CORRECT, "Done!. Proxy is listening on {}:{}...".format(self.instances.get("Config")["ProxyBindAddress"], self.instances.get("Config")["ProxyBindPort"]))
 
