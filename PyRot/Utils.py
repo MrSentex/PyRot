@@ -92,7 +92,7 @@ class Utils (object):
         return seconds
 
     def string_time_to_miliseconds(self, string):
-        return self.string_time_to_seconds(string) * 60
+        return self.string_time_to_seconds(string) * 1000
 
     def create_thread_pool(self, thread_number, target, arguments):
         return ThreadPool(thread_number, target, arguments)

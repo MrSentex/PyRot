@@ -13,7 +13,6 @@ class Config (object):
             "ProxyBindPort",
             "DefaultProxyType",
             "CheckUrl",
-            "MaxRequestLength",
         ]
 
         self.read()

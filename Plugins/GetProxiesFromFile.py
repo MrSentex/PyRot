@@ -4,7 +4,7 @@ class Main (object): # The name of the class mus be Main.
     AUTH = "MrSentex"
     TYPE = "proxies"
     REFRESH = True
-    REFRESH_ELAPSE = "50m" # m = Minutes | h = Hours | s = Seconds | d = Days
+    REFRESH_ELAPSE = "1m" # m = Minutes | h = Hours | s = Seconds | d = Days
 
     def __init__(self, config_instance): # Build-In
         # Config instance to give to the plugin the capability to read the configuration file.

@@ -203,18 +203,25 @@ class ProxyMemory (object):
             actual_time = time()
 
             for plugin_obj in self.refresh_tables:
-                if plugin_obj.get("time") > actual_time:
+                if plugin_obj.get("time") <= actual_time:
                     self.instances.get("Console").print_c(self.instances.get("Console").WARNING, "Refreshing plugin '{}'...".format(plugin_obj.get("plugin").NAME))
                     proxies = plugin_obj.get("plugin").return_proxies(refresh=True)
 
                     proxies_loaded = 0
 
                     for proxy in proxies:
+
+                        if proxy.get("type") is None:
+                            proxy["type"] = self.instances.get("Config")["DefaultProxyType"]
+
                         hash = hashlib.md5("{}:{}:{}".format(proxy.get("host"), proxy.get("port"), proxy.get("type"))).hexdigest()
 
                         if self.stored_proxies.get(hash) is None:
-                            self.stored_proxies[hash] = proxy
-                            proxies_loaded += 1
+                            if self.check_proxy(proxy):
+                                self.stored_proxies[hash] = proxy
+                                proxies_loaded += 1
+
+                    plugin_obj["time"] = time() + self.instances.get("Utils").string_time_to_seconds(plugin_obj.get("plugin").REFRESH_ELAPSE)
 
                     self.instances.get("Console").print_c(self.instances.get("Console").CORRECT, "Done!. {} new proxies loaded from '{}'.".format(proxies_loaded, plugin_obj.get("plugin").NAME))
 
@@ -254,8 +261,8 @@ class ProxyMemory (object):
 
                 self.instances.get("Console").print_c(self.instances.get("Console").CORRECT, "{} -> {} proxies loaded.".format(plugin.NAME, proxies_loaded))
 
-                if plugin.REFRESH_ELAPSE != "":
-                    refresh_time = self.instances.get("Utils").string_time_to_miliseconds(plugin.REFRESH_ELAPSE)
+                if plugin.REFRESH and plugin.REFRESH_ELAPSE != "":
+                    refresh_time = self.instances.get("Utils").string_time_to_seconds(plugin.REFRESH_ELAPSE)
 
                     if refresh_time == 0:
                         self.instances.get("Console").print_c(self.instances.get("Console").WARNING, "The plugin '{}' is refreshing all the {} seconds and can cause performance issues.".format(plugin.NAME, refresh_time))
@@ -288,6 +295,9 @@ class ProxyMemory (object):
         if not self.instances.get("Config")["CheckThreads"] is False or None or 0:
             check_proxy_thread = Thread(target=self.proxy_check_thread)
             check_proxy_thread.start()
+
+        refresh_thread = Thread(target=self.refresh_thread)
+        refresh_thread.start()
 
         return
 
