@@ -2,7 +2,6 @@ import socket
 from threading import Thread
 import requests
 from json import loads
-from rethinkdb import RethinkDB
 
 from time import sleep, time
 
