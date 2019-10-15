@@ -2,17 +2,26 @@ import socket
 from threading import Thread
 import requests
 from json import loads
+from rethinkdb import RethinkDB
 
 from time import sleep, time
 
 import hashlib, random
 from sys import exit
 
+import urllib
+conn_limit = {}
 class ClientHandler (object):
     def __init__(self):
         self.instances = None
 
         self.clients = {}
+
+    def auth(self, user_ip):
+        with open('rotatingips.txt') as f:
+            if user_ip in f.read():
+                return True
+        return False
 
     def get_client_hash(self, addr):
         return hashlib.new("md5", "{}".format(addr[0])).hexdigest()
@@ -67,6 +76,21 @@ class ClientHandler (object):
             return
 
     def handle_client(self, client, addr):
+        global conn_limit
+        conn_limit["limit"] = 300
+        if not self.auth(addr[0]):
+            self.instances.get("Console").print_c(self.instances.get("Console").INFO, "Client '{}' tried to connect without authentication.".format(addr[0]))
+            return
+        if  conn_limit.get(addr[0], 0) < 0:
+            conn_limit[addr[0]] = 0
+
+        conn_limit[addr[0]] = conn_limit.get(addr[0], 0) + 1
+        if conn_limit[addr[0]] > conn_limit["limit"]:
+            self.instances.get("Console").print_c(self.instances.get("Console").INFO, "Client '{}' tried to connect but has reached the connection limit.".format(addr[0]))
+            conn_limit[addr[0]] = conn_limit.get(addr[0], 0) - 1
+            return
+
+        
         proxy = self.get_proxy(addr)
         proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         proxy_socket.settimeout(self.instances.get("Config")["CheckTimeout"])
@@ -82,11 +106,12 @@ class ClientHandler (object):
                         break
 
         try:
-            proxy_socket.connect((proxy["host"], proxy["port"]))
+            proxy_socket.connect((proxy["host"], int(proxy["port"])))
         except Exception as e:
             self.instances.get("Console").print_c(self.instances.get("Console").ERROR, "The proxy connection failed in client '{}'. Deleting the proxy '{}:{}' and waiting to the next request. ({})".format(addr[0], proxy.get("host"), proxy.get("port"), str(e)))
             client.close()
             self.instances.get("ProxyMemory").remove_proxy(proxy)
+            conn_limit[addr[0]] = conn_limit.get(addr[0], 0) - 1
             return
 
         try:
@@ -95,9 +120,12 @@ class ClientHandler (object):
 
             client_to_proxy.start()
             proxy_to_client.start()
+            conn_limit[addr[0]] = conn_limit.get(addr[0], 0) - 1
+
 
         except Exception as e:
             self.instances.get("Console").print_c(self.instances.get("Console").ERROR, "An error ocurred while transmitting data on client '{}' ({}).".format(addr[0], str(e)))
+            conn_limit[addr[0]] = conn_limit.get(addr[0], 0) - 1
             return
 
     def set_instances(self, instances):
@@ -215,7 +243,7 @@ class ProxyMemory (object):
                 if plugin_obj.get("time") <= actual_time:
                     self.instances.get("Console").print_c(self.instances.get("Console").WARNING, "Refreshing plugin '{}'...".format(plugin_obj.get("plugin").NAME))
                     proxies = plugin_obj.get("plugin").return_proxies(refresh=True)
-
+                    urllib.urlretrieve ("https://api.proxyscrape.com/?request=rotatingips&auth=somethinghere", "rotatingips.txt")
                     proxies_loaded = 0
 
                     for proxy in proxies:
@@ -226,12 +254,8 @@ class ProxyMemory (object):
                         hash = hashlib.md5("{}:{}:{}".format(proxy.get("host"), proxy.get("port"), proxy.get("type"))).hexdigest()
 
                         if self.stored_proxies.get(hash) is None:
-
-                            if self.instances.get("Utils").is_ip(proxy.get("host")) and self.instances.get("Utils").is_integer(proxy.get("port")):
-                                proxy["port"] = int(proxy["port"])
-
-                                self.stored_proxies[hash] = proxy
-                                proxies_loaded += 1
+                            self.stored_proxies[hash] = proxy
+                            proxies_loaded += 1
 
                     plugin_obj["time"] = time() + self.instances.get("Utils").string_time_to_seconds(plugin_obj.get("plugin").REFRESH_ELAPSE)
 
